@@ -6,7 +6,7 @@
   </head>
   <body>
     <script>
-      const ws = new WebSocket("ws://localhost:4000/ws"); //conectando no websocket
+      const ws = new WebSocket("ws://localhost:4000/ws?userId=123456"); //conectando no websocket
 
       // rodar essa função toda vez que receber uma mensagem no websocket
       ws.onmessage = function (event) {

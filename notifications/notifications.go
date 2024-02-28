@@ -4,12 +4,18 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strconv"
 
 	"github.com/gorilla/websocket"
 )
 
-var clients = make(map[*websocket.Conn]bool) // connected clients
-var broadcast = make(chan string)            // broadcast channel
+type message struct {
+	UserId  int    `json:"userId"`
+	Message string `json:"message"`
+}
+
+var clients = make(map[int]*websocket.Conn)
+var broadcast = make(chan message) // broadcast channel
 var upgrader = websocket.Upgrader{
 	CheckOrigin: func(r *http.Request) bool {
 		return true
@@ -38,43 +44,38 @@ func handleNotifications(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	var payload struct {
-		Message string `json:"message"`
-	}
 
+	// Create a new message struct to hold the user ID and message.
+	var payload message
 	// Decode the JSON body into the payload
-	err := json.NewDecoder(r.Body).Decode(&payload)
-	if err != nil {
+	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
 		http.Error(w, "Error parsing JSON body", http.StatusBadRequest)
 		return
 	}
 
-	msg := payload.Message
-	broadcast <- msg
-	w.Write([]byte("Notification sent."))
+	// Send the message to the broadcast channel, including the user ID.
+	broadcast <- payload
+	w.Write([]byte("Notification queued."))
 }
 
 // quando o front de um user chama /ws é criada uma conexão websocket entre ele e o sistema de notificação
 func handleConnections(w http.ResponseWriter, r *http.Request) {
+	// Extract the user ID from the query string.
+	userId, err := strconv.Atoi(r.URL.Query().Get("userId"))
+	if err != nil {
+		http.Error(w, "User ID must be an integer", http.StatusBadRequest)
+		return
+	}
+
 	ws, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
 	defer ws.Close()
-	clients[ws] = true
 
-	for {
-		var msg string
-		// Read message as JSON and map it to a Message object
-		_, _, err := ws.ReadMessage()
-		if err != nil {
-			fmt.Printf("error: %v", err)
-			delete(clients, ws)
-			break
-		}
-		broadcast <- msg
-	}
+	// Associate the user ID with the WebSocket connection.
+	clients[userId] = ws
 }
 
 // manda mensagem ao websocket quando existe algo a ser transmitido
@@ -82,13 +83,14 @@ func handleMessages() {
 	for {
 		// Grab the next message from the broadcast channel
 		msg := <-broadcast
-		// Send it out to every client that is currently connected
-		for client := range clients {
-			err := client.WriteMessage(websocket.TextMessage, []byte(msg))
+
+		// Send the message to the specific user.
+		if client, ok := clients[msg.UserId]; ok {
+			err := client.WriteMessage(websocket.TextMessage, []byte(msg.Message))
 			if err != nil {
 				fmt.Printf("error: %v", err)
 				client.Close()
-				delete(clients, client)
+				delete(clients, msg.UserId)
 			}
 		}
 	}
