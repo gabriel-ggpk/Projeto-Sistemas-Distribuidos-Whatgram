@@ -4,18 +4,19 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"strconv"
 
 	"github.com/gorilla/websocket"
+	"gopkg.in/mgo.v2/bson"
 )
 
-type message struct {
-	UserId  int    `json:"userId"`
-	Message string `json:"message"`
+type Message struct {
+	OriginId string `json:"originId"`
+	UserId   string `json:"destinationId"`
+	Content  string `json:"content"`
 }
 
-var clients = make(map[int]*websocket.Conn)
-var broadcast = make(chan message) // broadcast channel
+var clients = make(map[string]*websocket.Conn)
+var broadcast = make(chan Message) // broadcast channel
 var upgrader = websocket.Upgrader{
 	CheckOrigin: func(r *http.Request) bool {
 		return true
@@ -53,7 +54,7 @@ func handleNotifications(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Create a new message struct to hold the user ID and message.
-	var payload message
+	var payload Message
 	// Decode the JSON body into the payload
 	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
 		http.Error(w, "Error parsing JSON body", http.StatusBadRequest)
@@ -68,21 +69,28 @@ func handleNotifications(w http.ResponseWriter, r *http.Request) {
 // quando o front de um user chama /ws é criada uma conexão websocket entre ele e o sistema de notificação
 func handleConnections(w http.ResponseWriter, r *http.Request) {
 	// Extract the user ID from the query string.
-	userId, err := strconv.Atoi(r.URL.Query().Get("userId"))
-	if err != nil {
-		http.Error(w, "User ID must be an integer", http.StatusBadRequest)
+	userId := r.URL.Query().Get("userId")
+
+	// Validate the userID is a valid MongoDB ObjectId hex value.
+	if !bson.IsObjectIdHex(userId) {
+		http.Error(w, "User ID must be a valid MongoDB ObjectId", http.StatusBadRequest)
 		return
 	}
 
+	// Upgrade the HTTP server connection to the WebSocket protocol.
 	ws, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		fmt.Println(err)
+		http.Error(w, "Could not open websocket connection", http.StatusInternalServerError)
 		return
 	}
 	// defer ws.Close()
 
 	// Associate the user ID with the WebSocket connection.
+	// Assuming clients is a map that stores WebSocket connections with userID as the key.
 	clients[userId] = ws
+
+	// More logic to handle the WebSocket connection...
 }
 
 // manda mensagem ao websocket quando existe algo a ser transmitido
@@ -91,9 +99,20 @@ func handleMessages() {
 		// Grab the next message from the broadcast channel
 		msg := <-broadcast
 
+		// Create a JSON object that includes both content and originId
+		messageData := map[string]string{
+			"content":  msg.Content,
+			"originId": msg.OriginId,
+		}
+		messageJSON, err := json.Marshal(messageData)
+		if err != nil {
+			fmt.Printf("error marshalling message data: %v", err)
+			continue
+		}
+
 		// Send the message to the specific user.
 		if client, ok := clients[msg.UserId]; ok {
-			err := client.WriteMessage(websocket.TextMessage, []byte(msg.Message))
+			err := client.WriteMessage(websocket.TextMessage, messageJSON)
 			if err != nil {
 				fmt.Printf("error: %v", err)
 				client.Close()
@@ -101,4 +120,5 @@ func handleMessages() {
 			}
 		}
 	}
+
 }
