@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>WebSocket Notification Tester</title>
+    <script type="text/javascript">
+      let socket = null;
+
+      function connectWebSocket(userId) {
+        console.log(socket);
+        // Create WebSocket connection.
+        socket = new WebSocket("ws://localhost:4000/ws?userId=" + userId);
+
+        // Connection opened
+        socket.addEventListener("open", function (event) {
+          logMessage("Connected to WS Server as User " + userId);
+        });
+
+        // Listen for messages
+        socket.addEventListener("message", function (event) {
+          logMessage("Message from server: " + event.data);
+        });
+
+        // Listen for errors
+        socket.addEventListener("error", function (event) {
+          logMessage("WebSocket error: " + JSON.stringify(event));
+        });
+
+        // Connection closed
+        socket.addEventListener("close", function (event) {
+          console.log("close");
+          logMessage("Disconnected from WS Server");
+        });
+      }
+
+      function logMessage(message) {
+        var messages = document.getElementById("messages");
+        var messageElement = document.createElement("li");
+        messageElement.textContent = message;
+        messages.appendChild(messageElement);
+      }
+
+      function sendMessage() {
+        var userId = document.getElementById("sendUserId").value;
+        var message = document.getElementById("message").value;
+
+        fetch("http://localhost:4000/notify", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            UserId: parseInt(userId, 10),
+            Message: message,
+          }),
+        })
+          .then((response) => response.text())
+          .then((data) => {
+            logMessage("Message sent to user " + userId + ": " + message);
+          })
+          .catch((error) => {
+            console.error("Error:", error);
+          });
+      }
+
+      document.addEventListener("DOMContentLoaded", function () {
+        document
+          .getElementById("connect")
+          .addEventListener("click", function () {
+            var userId = document.getElementById("userId").value;
+            connectWebSocket(userId);
+          });
+
+        document
+          .getElementById("sendMessage")
+          .addEventListener("click", function (event) {
+            event.preventDefault(); // Prevent form submission
+            sendMessage();
+          });
+      });
+    </script>
+  </head>
+  <body>
+    <h2>WebSocket Notification Tester</h2>
+    <div>
+      <input type="number" id="userId" placeholder="Enter User ID" />
+      <button id="connect">Connect as User</button>
+    </div>
+    <div>
+      <h4>Send Message</h4>
+      <input type="number" id="sendUserId" placeholder="Recipient User ID" />
+      <input type="text" id="message" placeholder="Message" />
+      <button id="sendMessage">Send Message</button>
+    </div>
+    <ul id="messages"></ul>
+  </body>
+</html>

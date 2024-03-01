@@ -40,6 +40,13 @@ func main() {
 // recebe chamada post com a notificação adiciona à fila de mensagens
 // no produto final havera distinção entre webhooks de cada usuario
 func handleNotifications(w http.ResponseWriter, r *http.Request) {
+	if r.Method == http.MethodOptions {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+		w.WriteHeader(http.StatusOK)
+		return
+	}
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
@@ -72,7 +79,7 @@ func handleConnections(w http.ResponseWriter, r *http.Request) {
 		fmt.Println(err)
 		return
 	}
-	defer ws.Close()
+	// defer ws.Close()
 
 	// Associate the user ID with the WebSocket connection.
 	clients[userId] = ws
