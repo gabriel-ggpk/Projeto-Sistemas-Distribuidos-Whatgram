@@ -2,19 +2,20 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.PrintStream;
+import java.net.HttpURLConnection;
 import java.net.Socket;
+import java.net.URL;
+
 import org.json.JSONObject;
 
 public class Client extends Thread {
 	
-
-	private Socket conexao;
+	public Socket conexao;
 	
-	private static String UserID;
+	public static String UserID;
 
-	public Client(Socket socket, String userID) {
+	public Client(Socket socket) {
 		this.conexao = socket;
-		this.UserID = userID;
 	}
 
 	public String getUserID() {
@@ -31,17 +32,25 @@ public class Client extends Thread {
 
 			Socket socket = new Socket("192.168.0.16", 1234);
 			PrintStream saida = new PrintStream(socket.getOutputStream());
-			BufferedReader teclado = new BufferedReader(new InputStreamReader(System.in));
 	                  
-	        Thread thread = new Client(socket,"Joao");
+	        Thread thread = new Client(socket);
 	        thread.start();
 	        
 	        while (true)
             {
-                String mensagem = teclado.readLine();
+	        	
+	        //Recebe a mensagem do front e manda essa mensagem e o nome do cliente como um JSON para o server
+	        URL url = new URL("/front");
+	        HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+	        conn.setRequestMethod("POST");
+	             
+	        BufferedReader leitor = new BufferedReader(new InputStreamReader(conn.getInputStream())); 
+	             
+                String mensagem = leitor.readLine();
                  
                 JSONObject objeto = new JSONObject();
                 String usuario = UserID;
+                
                 objeto.put("userId", usuario);
                 objeto.put("message", mensagem);
                 String JSON = objeto.toString();
@@ -60,10 +69,9 @@ public class Client extends Thread {
 	            
 	            while (true)
 	            {
-	            	System.out.println("aloha");
 	                String mensagem = entrada.readLine();
 	                if (mensagem == null) {
-	                    System.out.println("Conex�o encerrada");
+	                    System.out.println("Conexao encerrada");
 	                    System.exit(0);
 	                }
 	                System.out.println("\n" + mensagem);
@@ -71,6 +79,8 @@ public class Client extends Thread {
 	        } 
 	        	catch (IOException e) {
 	        	e.printStackTrace();
-            }
+	        }
+	
 	}
 }
+
