@@ -10,6 +10,7 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
 
+
 public class Server extends Thread {
 	
     private Socket conexao;
@@ -67,7 +68,7 @@ public class Server extends Thread {
 						.uri(URI.create("/busca"))
 						.build();
 				
-				notify.sendAsync(pedido, HttpResponse.BodyHandlers.ofString())
+				busca.sendAsync(pedido2, HttpResponse.BodyHandlers.ofString())
 				      .thenApply(HttpResponse::body)
 				      .thenAccept(System.out::println)
 				      .join();
@@ -78,6 +79,6 @@ public class Server extends Thread {
 		} catch (IOException e) {
 			e.printStackTrace();
 		}
-	
+		
     }
 }
